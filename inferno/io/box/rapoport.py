@@ -16,17 +16,17 @@ import torch.utils.data as data
 
 
 class Rapoport(data.Dataset):
-    splits = ('train', 'val', 'test')
+    # splits = ('train', 'val', 'test')
 
     def __init__(self, root_folder, split='train',
                  image_transform=None, label_transform=None, joint_transform=None):
         """
         Parameters:
         root_folder: folder that contains 'rapoport_ground_truth_sub_tolerant.h5' and 'raw_sub.h5'.
-        split: name of dataset spilt (i.e. 'train_extra', 'train', 'val' or 'test')
+        split: name of dataset split (i.e. 'train_extra', 'train', 'val' or 'test')
         """
         assert os.path.exists(root_folder)
-        assert split in self.splits, str(split)
+        # assert split in self.splits, str(split)
 
 
         self.root_folder = root_folder
@@ -48,7 +48,7 @@ class Rapoport(data.Dataset):
         return self.img_data[index], self.gt_data[index]
 
     def __len__(self):
-        return len(img_data.shape[0])
+        return self.img_data.shape[0]
 
 
 def get_rapoport_loaders(root_folder, split='all', shuffle=True, num_workers=2):
