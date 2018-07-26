@@ -393,3 +393,25 @@ class ManualLR(Callback):
             self.decay(global_factor)
 
 
+class PolyLR(Callback):
+    def __init__(self, initial_lr, max_iterations, power=0.9):
+        super(PolyLR, self).__init__()
+        self.max_iterations = max_iterations
+        self.power = power
+        self.initial_lr = initial_lr
+
+
+    def end_of_training_iteration(self, **_):
+        factor = (1 - self.trainer.iteration_count / self.max_iterations)**self.power
+        new_lr = self.initial_lr * factor
+        for param_group_num, (param_group, lr) in enumerate(zip(self.trainer.optimizer.param_groups, pyu.to_iterable(new_lr))):
+            param_group['lr'] = lr
+            self.debug_print("LR of param_group {} set to {}"
+                             .format(param_group_num,
+                                     param_group['lr']))
+
+
+
+
+
+
