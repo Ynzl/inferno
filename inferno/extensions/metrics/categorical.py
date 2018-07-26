@@ -41,9 +41,10 @@ class CategoricalError(Metric):
 
 class IOU(Metric):
     """Intersection over Union. """
-    def __init__(self, ignore_class=None, sharpen_prediction=False, eps=1e-6):
+    def __init__(self, ignore_index=None, ignore_class=None, sharpen_prediction=False, eps=1e-6):
         super(IOU, self).__init__()
         self.eps = eps
+        self.ignore_index = ignore_index
         self.ignore_class = ignore_class
         self.sharpen_prediction = sharpen_prediction
 
@@ -73,15 +74,26 @@ class IOU(Metric):
                     "Target must be a label tensor (of dtype long) if it has one "
                     "dimension less than the prediction.",
                     DTypeError)
+            num_labels = max(target.max().item() + 1, num_classes)
+            assert_(num_labels <= num_classes + 1,
+                    f"too many labels {num_labels}",
+                    ValueError)
             # Reshape target to (1, -1) for it to work with scatter
             flattened_target = target.view(1, -1)
             # Convert target to onehot with shape (C, -1)
-            # Make sure the target is consistent
-            assert_(target.max() < num_classes)
             onehot_targets = flattened_prediction \
-                .new(num_classes, num_samples) \
+                .new(num_labels, num_samples) \
                 .zero_() \
                 .scatter_(0, flattened_target, 1)
+            # If we are ignoring a label index, remove it from onehot_target
+            if self.ignore_index is not None and self.ignore_index < num_labels:
+                ignore_index = self.ignore_index \
+                    if self.ignore_index != -1 else onehot_targets.size(0) - 1
+                dont_ignore_index = list(range(onehot_targets.size(0)))
+                dont_ignore_index.pop(ignore_index)
+                onehot_targets = onehot_targets[dont_ignore_index]
+            # Make sure the target is consistent
+            assert_(onehot_targets.size(0) == num_classes)
         elif target.dim() == prediction.dim():
             # Onehot, nothing to do except flatten
             onehot_targets = flatten_samples(target)
@@ -103,8 +115,9 @@ class IOU(Metric):
         # We sum over all samples to obtain a classwise iou
         numerator = (flattened_prediction * onehot_targets).sum(-1)
         denominator = \
-            flattened_prediction.sub_(onehot_targets).pow_(2).clamp_(min=self.eps).sum(-1) + \
+            flattened_prediction.sub_(onehot_targets).pow_(2).sum(-1) + \
             numerator
+        # classwise_iou = numerator.div_(denominator).clamp_(min=self.eps)
         classwise_iou = numerator.div_(denominator)
         # If we're ignoring a class, don't count its contribution to the mean
         if self.ignore_class is not None:
@@ -124,7 +137,7 @@ class IOU(Metric):
                 dont_ignore_class = torch.LongTensor(dont_ignore_class)
             iou = classwise_iou[dont_ignore_class].mean()
         else:
-            iou = classwise_iou.mean()
+            iou = classwise_iou[~torch.isnan(classwise_iou)].mean()
         return iou
 
 
