@@ -141,6 +141,61 @@ class IOU(Metric):
         return iou
 
 
+class newIOU(Metric):
+    """Intersection over Union.
+
+    ignore_label: index in ground truth that should be ignored (e.g. void label)
+    ignore_class: index of class that should be ignored (e.g. background)
+    """
+    def __init__(self, num_classes, ignore_label=None, ignore_class=None, eps=1e-6):
+        super(newIOU, self).__init__()
+        self.eps = eps
+        self.num_classes = num_classes
+        self.ignore_label = ignore_label
+        self.ignore_class = ignore_class
+
+    def forward(self, prediction, target):
+        flattened_prediction = flatten_samples(prediction).argmax(dim=0)
+        # We need to figure out if the target is a int label tensor or a onehot tensor.
+        # The former always has one dimension less, so
+        if target.dim() == (prediction.dim() - 1):
+            # Labels
+            # Make sure it's a label
+            assert_(is_label_tensor(target),
+                    "Target must be a label tensor (of dtype long) if it has one "
+                    "dimension less than the prediction.",
+                    DTypeError)
+            flattened_target = flatten_samples(target)
+        elif target.dim() == prediction.dim():
+            # Onehot, change to labels
+            flattened_target = flatten_samples(target).argmax(dim=1)
+
+        labels = torch.unique(torch.cat((flattened_target, flattened_prediction), dim=0))
+
+        mask = (labels >= 0) & (labels < num_classes)
+        confusion = torch.bincount(
+                self.num_classes * flattened_target[mask] + flattened_prediction[mask],
+                minlength=self.num_classes**2
+                ).reshape((self.num_classes, self.num_classes))
+        class_iou = torch.diag(confusion) / (confusion.sum(dim=1) + confusion.sum(dim=0) - torch.diag(confusion))
+
+        if self.ignore_class is not None:
+            ignore_class = self.ignore_class \
+                if self.ignore_class != -1 else num_classes - 1
+            dont_ignore_class = list(range(num_classes))
+            dont_ignore_class.pop(ignore_class)
+            if classwise_iou.is_cuda:
+                dont_ignore_class = \
+                    torch.LongTensor(dont_ignore_class).cuda(classwise_iou.get_device())
+            else:
+                dont_ignore_class = torch.LongTensor(dont_ignore_class)
+            iou = class_iou[dont_ignore_class].mean()
+        else:
+            iou = class_iou[~torch.isnan(class_iou)].mean()
+
+        return iou
+
+
 class NegativeIOU(IOU):
     def forward(self, prediction, target):
         return -1 * super(NegativeIOU, self).forward(prediction, target)
