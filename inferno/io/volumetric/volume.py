@@ -11,6 +11,32 @@ from ...utils.exceptions import assert_, ShapeError
 
 
 class VolumeLoader(SyncableDataset):
+    """ Loader for in-memory volumetric data.
+
+    Parameters
+    ----------
+    volume: np.ndarray
+        the volumetric data
+    window_size: list or tuple
+        size of the (3d) sliding window used for iteration
+    stride: list or tuple
+        stride of the (3d) sliding window used for iteration
+    downsampling_ratio: list or tuple (default: None)
+        factor by which the data is downsampled (no downsapling by default)
+    padding: list (default: None)
+        padding for data, follows np.pad syntax
+    padding_mode: str (default: 'reflect')
+        padding mode as in np.pad
+    transforms: callable (default: None)
+       transforms applied on each batch loaded from volume
+    return_index_spec: bool (default: False)
+        whether to return the index spec for each batch
+    name: str (default: None)
+        name of this volume
+    is_multichannel: bool (default: False)
+        is this a multichannel volume? sliding window is NOT applied to channel dimension
+    """
+
     def __init__(self, volume, window_size, stride, downsampling_ratio=None, padding=None,
                  padding_mode='reflect', transforms=None, return_index_spec=False, name=None,
                  is_multichannel=False):
@@ -70,6 +96,10 @@ class VolumeLoader(SyncableDataset):
         if padding is None:
             return self.volume
         else:
+            #for symmertic padding only one int can be passed for each axis
+            assert_(all(isinstance(pad, (int, tuple, list)) for pad in self.padding),\
+                "Expect int or iterable", TypeError)
+            self.padding = [[pad, pad] if isinstance(pad, int) else pad for pad in self.padding]
             self.volume = np.pad(self.volume,
                                  pad_width=self.padding,
                                  mode=self.padding_mode)
@@ -121,6 +151,43 @@ class VolumeLoader(SyncableDataset):
 
 
 class HDF5VolumeLoader(VolumeLoader):
+    """ Loader for volumes stored in hdf5, zarr or n5.
+
+    Zarr and n5 are file formats very similar to hdf5, but use
+    the regular filesystem to store data instead of a filesystem
+    in a file as hdf5.
+    The file type will be infered from the extension:
+    .hdf5, .h5 and .hdf map to hdf5
+    .n5 maps to n5
+    .zr and .zarr map to zarr
+    It will fail for other extensions.
+
+    Parameters
+    ----------
+    path: str
+        path to file
+    path_in_h5_dataset: str (default: None)
+        path in file
+    data_slice: slice (default: None)
+        slice loaded from dataset
+    transforms: callable (default: None)
+       transforms applied on each batch loaded from volume
+    name: str (default: None)
+        name of this volume
+    slicing_config: kwargs
+        keyword arguments for base class `VolumeLoader`
+    """
+
+    @staticmethod
+    def is_h5(file_path):
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in ('.h5', '.hdf', '.hdf5'):
+            return True
+        elif ext in ('.zarr', '.zr', '.n5'):
+            return False
+        else:
+            raise RuntimeError("Could not infer volume type for file extension %s" % ext)
+
     def __init__(self, path, path_in_h5_dataset=None, data_slice=None, transforms=None,
                  name=None, **slicing_config):
 
@@ -145,6 +212,7 @@ class HDF5VolumeLoader(VolumeLoader):
         else:
             raise NotImplementedError
 
+        # get the dataslice
         if data_slice is None or isinstance(data_slice, (str, list)):
             self.data_slice = vu.parse_data_slice(data_slice)
         elif isinstance(data_slice, dict):
@@ -156,14 +224,20 @@ class HDF5VolumeLoader(VolumeLoader):
 
         slicing_config_for_name = pyu.get_config_for_name(slicing_config, name)
 
+        # adapt data-slice if this is a multi-channel volume (slice is not applied to channel dimension)
+        if self.data_slice is not None and slicing_config_for_name.get('is_multichannel', False):
+            self.data_slice = (slice(None),) + self.data_slice
+
         assert 'window_size' in slicing_config_for_name
         assert 'stride' in slicing_config_for_name
 
-        # Read in volume from file
-        volume = iou.fromh5(self.path, self.path_in_h5_dataset,
-                            dataslice=(tuple(self.data_slice)
-                                       if self.data_slice is not None
-                                       else None))
+        # Read in volume from file (can be hdf5, n5 or zarr)
+        if self.is_h5(self.path):
+            volume = iou.fromh5(self.path, self.path_in_h5_dataset,
+                                dataslice=self.data_slice)
+        else:
+            volume = iou.fromz5(self.path, self.path_in_h5_dataset,
+                                dataslice=self.data_slice)
         # Initialize superclass with the volume
         super(HDF5VolumeLoader, self).__init__(volume=volume, name=name, transforms=transforms,
                                                **slicing_config_for_name)

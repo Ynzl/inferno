@@ -49,7 +49,8 @@ def slidingwindowslices(shape, window_size, strides,
         stops  = [dimsize - wsize if wsize != dimsize else dimsize
                   for dimsize, wsize in zip(shape, window_size)]
 
-    assert all(stp > strt for strt, stp in zip(starts, stops)), "%s, %s" % (str(starts), str(stops))
+    assert all(stp > strt for strt, stp in zip(starts, stops)),\
+        "%s, %s" % (str(starts), str(stops))
     nslices = [dimension_window(start, stop, wsize, stride, dimsize, ds_dim)
                for start, stop, wsize, stride, dimsize, ds_dim
                in zip(starts, stops, window_size, strides, shape, ds)]
@@ -138,7 +139,7 @@ def parse_data_slice(data_slice):
         return data_slice
     elif isinstance(data_slice, (list, tuple)) and \
             all([isinstance(_slice, slice) for _slice in data_slice]):
-        return list(data_slice)
+        return tuple(data_slice)
     else:
         assert isinstance(data_slice, str)
     # Get rid of whitespace
@@ -161,5 +162,4 @@ def parse_data_slice(data_slice):
         step = int(step) if step is not None and step != '' else None
         # Build slices
         slices.append(slice(start, stop, step))
-    # Done.
-    return slices
+    return tuple(slices)

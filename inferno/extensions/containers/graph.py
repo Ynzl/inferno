@@ -357,7 +357,7 @@ class Graph(nn.Module):
             modules.append(module)
         return pyu.from_iterable(modules)
 
-    def to_device(self, names, target_device, device_ordinal=None, asynchron=False):
+    def to_device(self, names, target_device, device_ordinal=None, asynchronous=False):
         """Transfer nodes in the network to a specified device."""
         names = pyu.to_iterable(names)
         for name in names:
@@ -368,7 +368,7 @@ class Graph(nn.Module):
             # Transfer
             module_on_device = OnDevice(module, target_device,
                                         device_ordinal=device_ordinal,
-                                        asynchron=asynchron)
+                                        asynchronous=asynchronous)
             setattr(self, name, module_on_device)
         return self
 
@@ -386,7 +386,8 @@ class Graph(nn.Module):
 
     def clear_payloads(self, graph=None):
         graph = self.graph if graph is None else graph
-        for source, target in graph.edges_iter():
+        for edge in list(graph.edges(data=True)):
+            source, target, _ = edge
             if 'payload' in graph[source][target]:
                 del graph[source][target]['payload']
 
