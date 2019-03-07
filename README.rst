@@ -3,10 +3,8 @@
 Inferno
 =======
 
-
-
-.. image:: https://img.shields.io/pypi/v/inferno.svg
-        :target: https://pypi.python.org/pypi/inferno-pytorch
+.. image:: https://anaconda.org/conda-forge/inferno/badges/version.svg   
+        :target: https://anaconda.org/conda-forge/inferno
 
 .. image:: https://travis-ci.org/inferno-pytorch/inferno.svg?branch=master
         :target: https://travis-ci.org/inferno-pytorch/inferno
@@ -24,7 +22,7 @@ Inferno
 
 Inferno is a little library providing utilities and convenience functions/classes around 
 `PyTorch <https://github.com/pytorch/pytorch>`_. 
-It's a work-in-progress, but the first stable release (0.2) is underway! 
+It's a work-in-progress, but the latest release (0.3.1) should be fairly stable! 
 
 
 
