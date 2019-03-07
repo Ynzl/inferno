@@ -1392,7 +1392,7 @@ class Trainer(object):
                 self.console.info("Breaking on request from callback.")
                 break
             self.console.progress("Training iteration {} (batch {} of epoch {})."
-                       .format(iteration_num, self._batch_count, self._epoch_count))
+                       .format(self._iteration_count, self._batch_count, self._epoch_count))
             # Call callback
             self.callbacks.call(self.callbacks.BEGIN_OF_TRAINING_ITERATION,
                                 iteration_num=iteration_num)
