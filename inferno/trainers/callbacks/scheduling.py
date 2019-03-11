@@ -396,13 +396,21 @@ class ManualLR(Callback):
 class PolyLR(Callback):
     def __init__(self, initial_lr, max_iterations, power=0.9):
         super(PolyLR, self).__init__()
+        self.init_lr = initial_lr if isinstance(initial_lr, float) else iter(initial_lr) 
+        # self.initial_lr = self.init_lr if isinstance(self.init_lr, float) else next(self.init_lr)
         self.max_iterations = max_iterations
         self.power = power
-        self.initial_lr = initial_lr
+        self.iteration_start = 0
 
 
     def end_of_training_iteration(self, **_):
-        factor = (1 - self.trainer.iteration_count / self.max_iterations)**self.power
+        if self.trainer.iteration_count % self.max_iterations == 0:
+            self.iteration_start = self.trainer.iteration_count
+            self.initial_lr = self.init_lr if isinstance(self.init_lr, float) else next(self.init_lr)
+            print(f'setting init lr to {self.initial_lr} and iter start to {self.iteration_start}')
+
+        factor = 1 - (self.trainer.iteration_count - self.iteration_start) / self.max_iterations
+        factor = factor**self.power if factor > 0 else 1e-9
         new_lr = self.initial_lr * factor
         for param_group_num, (param_group, lr) in enumerate(zip(self.trainer.optimizer.param_groups, pyu.to_iterable(new_lr))):
             param_group['lr'] = lr
@@ -412,6 +420,35 @@ class PolyLR(Callback):
 
 
 
+class ExponentialLR(Callback):
+    def __init__(self, iterations, factor, exclude_param_groups=None):
+        super(ExponentialLR, self).__init__()
+        self.iterations = iterations
+        self.factor = factor
+        self.exclude_param_groups = pyu.to_iterable(exclude_param_groups) \
+            if exclude_param_groups is not None else None
+
+    def match(self):
+        if self.trainer.iteration_count % self.iterations == 0 and self.trainer.iteration_count > 0: 
+            return True
+        else:
+            return False
+
+    def decay(self, factor):
+        exclude_param_groups = \
+            [] if self.exclude_param_groups is None else list(self.exclude_param_groups)
+        for param_group_num, param_group in enumerate(self.trainer.optimizer.param_groups):
+            if param_group_num not in exclude_param_groups:
+                param_group['lr'] *= factor
+                self.debug_print("Decayed LR of param_group {} from {} --> {}"
+                                 .format(param_group_num,
+                                         param_group['lr'] / factor,
+                                         param_group['lr']))
+
+    def end_of_training_iteration(self, **_):
+        matched = self.match()
+        if matched:
+            self.decay(self.factor)
 
 
 

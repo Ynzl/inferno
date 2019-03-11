@@ -159,4 +159,5 @@ def adapted_rand(seg, gt):
     precision = float(sum_p_ij) / sum_b
     recall = float(sum_p_ij) / sum_a
     f_score = 2.0 * precision * recall / (precision + recall)
+
     return f_score, precision, recall
