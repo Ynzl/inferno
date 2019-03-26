@@ -394,24 +394,32 @@ class ManualLR(Callback):
 
 
 class PolyLR(Callback):
-    def __init__(self, initial_lr, max_iterations, power=0.9):
+    def __init__(self, initial_lr=None, max_iterations=None, power=0.9):
         super(PolyLR, self).__init__()
-        self.init_lr = initial_lr if isinstance(initial_lr, float) else iter(initial_lr) 
+        # self.init_lr = initial_lr if isinstance(initial_lr, float) else iter(initial_lr) 
         # self.initial_lr = self.init_lr if isinstance(self.init_lr, float) else next(self.init_lr)
-        self.max_iterations = max_iterations
+
+        # self.initial_lrs = [pg['lr'] for pg in self.trainer.optimizer.param_groups]
+        # self.max_iterations = self.trainer._max_num_iterations
+        # self.max_iterations = max_iterations
         self.power = power
-        self.iteration_start = 0
+        # self.iteration_start = 0
+        # print(f'inital lrs: {self.initial_lrs}, max iterations: {self.max_iterations}')
 
 
     def end_of_training_iteration(self, **_):
-        if self.trainer.iteration_count % self.max_iterations == 0:
-            self.iteration_start = self.trainer.iteration_count
-            self.initial_lr = self.init_lr if isinstance(self.init_lr, float) else next(self.init_lr)
-            print(f'setting init lr to {self.initial_lr} and iter start to {self.iteration_start}')
+        if self.trainer.iteration_count == 0:
+            self.initial_lrs = [pg['lr'] for pg in self.trainer.optimizer.param_groups]
+            self.max_iterations = self.trainer._max_num_iterations
+            print(f'inital lrs: {self.initial_lrs}, max iterations: {self.max_iterations}')
+        #     self.iteration_start = self.trainer.iteration_count
+        #     self.initial_lr = self.init_lr if isinstance(self.init_lr, float) else next(self.init_lr)
+        #     print(f'setting init lr to {self.initial_lr} and iter start to {self.iteration_start}')
 
-        factor = 1 - (self.trainer.iteration_count - self.iteration_start) / self.max_iterations
+        # factor = 1 - (self.trainer.iteration_count - self.iteration_start) / self.max_iterations
+        factor = 1 - self.trainer.iteration_count / self.max_iterations
         factor = factor**self.power if factor > 0 else 1e-9
-        new_lr = self.initial_lr * factor
+        new_lr = [ilr * factor for ilr in self.initial_lrs]
         for param_group_num, (param_group, lr) in enumerate(zip(self.trainer.optimizer.param_groups, pyu.to_iterable(new_lr))):
             param_group['lr'] = lr
             self.debug_print("LR of param_group {} set to {}"
