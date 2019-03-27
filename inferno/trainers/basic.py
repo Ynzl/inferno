@@ -1649,6 +1649,10 @@ class Trainer(object):
                    checkpoint_path,
                    pickle_module=self.pickle_module)
 
+        model_path = os.path.join(self._save_to_directory, 'checkpoint_model.pth')
+        best_model_path = os.path.join(self._save_to_directory, 'best_model_pth')
+        self.save_model_state(filename='checkpoint_model.pth')
+
         self.callbacks.call(self.callbacks.END_OF_SAVE,
                             save_to_directory=self._save_to_directory,
                             checkpoint_path=checkpoint_path,
@@ -1661,6 +1665,7 @@ class Trainer(object):
         if self._is_iteration_with_best_validation_score and stash_best_checkpoint:
             # Do the stashin'
             shutil.copyfile(checkpoint_path, best_checkpoint_path)
+            shutil.copyfile(model_path, best_model_path)
 
         # This is required to prevent an infinite save loop?
         self._is_iteration_with_best_validation_score = False
@@ -1672,6 +1677,14 @@ class Trainer(object):
         # Save the state dictionary
         torch.save(self.model,
                    os.path.join(to_directory, 'model.pytorch'),
+                   pickle_module=self.pickle_module)
+        return self
+
+    def save_model_state(self, to_directory=None, filename=None):
+        to_directory = self._save_to_directory if to_directory is None else to_directory
+        filename = 'model_state.pth' if filename is None else filename
+        torch.save(self.model.state_dict(),
+                   os.path.join(to_directory, filename),
                    pickle_module=self.pickle_module)
         return self
 
