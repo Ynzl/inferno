@@ -394,37 +394,46 @@ class ManualLR(Callback):
 
 
 class PolyLR(Callback):
-    def __init__(self, power=0.9):
+    def __init__(self, power=0.9, exclude_param_groups=None):
         super(PolyLR, self).__init__()
         self.power = power
+        self.exclude_param_groups = pyu.to_iterable(exclude_param_groups) \
+            if exclude_param_groups is not None else None
+
+    def bind_trainer(self, *args, **kwargs):
+        super(PolyLR, self).bind_trainer(*args, **kwargs)
+        self.initial_lrs = [pg['lr'] for pg in self.trainer.optimizer.param_groups]
+        self.max_iterations = self.trainer._max_num_iterations
+        self.debug_print(f'inital lrs: {self.initial_lrs}, max iterations: {self.max_iterations}')
 
     def end_of_training_iteration(self, **_):
-        if self.trainer.iteration_count == 0:
-            self.initial_lrs = [pg['lr'] for pg in self.trainer.optimizer.param_groups]
-            self.max_iterations = self.trainer._max_num_iterations
-            self.debug_print(f'inital lrs: {self.initial_lrs}, max iterations: {self.max_iterations}')
-
         factor = 1 - self.trainer.iteration_count / self.max_iterations
-        factor = factor**self.power if factor > 0 else 1e-9
+        factor = factor**self.power if factor > 0 else 1e-12
         new_lr = [ilr * factor for ilr in self.initial_lrs]
-        for param_group_num, (param_group, lr) in enumerate(zip(self.trainer.optimizer.param_groups, pyu.to_iterable(new_lr))):
-            param_group['lr'] = lr
-            self.debug_print("LR of param_group {} set to {}"
-                             .format(param_group_num,
-                                     param_group['lr']))
+
+        exclude_param_groups = \
+            [] if self.exclude_param_groups is None else list(self.exclude_param_groups)
+        for param_group_num, (param_group, lr) in enumerate(zip(self.trainer.optimizer.param_groups, new_lr)):
+            if param_group_num not in exclude_param_groups:
+                param_group['lr'] = lr
+                self.debug_print("LR of param_group {} set to {}"
+                                 .format(param_group_num,
+                                         param_group['lr']))
 
 
-
-class ExponentialLR(Callback):
-    def __init__(self, iterations, factor, exclude_param_groups=None):
-        super(ExponentialLR, self).__init__()
-        self.iterations = iterations
+class StepLR(Callback):
+    """
+    Regular decay every `step_size` by `factor`
+    """
+    def __init__(self, step_size, factor, exclude_param_groups=None):
+        super(StepLR, self).__init__()
+        self.step_size = step_size
         self.factor = factor
         self.exclude_param_groups = pyu.to_iterable(exclude_param_groups) \
             if exclude_param_groups is not None else None
 
     def match(self):
-        if self.trainer.iteration_count % self.iterations == 0 and self.trainer.iteration_count > 0: 
+        if self.trainer.iteration_count % self.step_size == 0 and self.trainer.iteration_count > 0: 
             return True
         else:
             return False
