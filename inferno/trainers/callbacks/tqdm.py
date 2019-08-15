@@ -11,7 +11,7 @@ class TQDMPrinter(object):
     def print(self, message):
         if self._progress.outer_bar is not None:
             self._progress.outer_bar.clear()
-        tqdm.write(message)
+        tqdm.write("[+][{}] {}".format(str(datetime.now()), message))
         if self._progress.outer_bar is not None:
             self._progress.outer_bar.refresh()
 
